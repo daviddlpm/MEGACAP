@@ -2,21 +2,25 @@
 """
 Descarga y normaliza métricas de GOOGL, MSFT, META y AMZN.
 
-Salida: data/<TICKER>.json  +  data/index.json
+Uso
+---
+    python scripts/fetch_data.py            # descarga completa
+    python scripts/fetch_data.py --precios  # solo precio y cotización (ligero)
 
-Fuentes
--------
-1. Financial Modeling Prep (FMP)  -> fundamentales, múltiplos, noticias, precio EOD.
-   Requiere la variable de entorno FMP_API_KEY (GitHub Secret).
-   Se intenta primero la ruta /stable/ y, si falla, la ruta legacy /api/v3/.
-2. Stooq (sin clave, CSV abierto) -> respaldo de serie de precios si FMP no responde.
+Presupuesto de llamadas (plan gratuito de FMP: 250/día)
+-------------------------------------------------------
+    --precios   2 por valor  ->   8 por ejecución
+    completa    5 por valor  ->  20 por ejecución
 
-El script nunca aborta por un fallo puntual: si una sección no se puede descargar
-conserva el valor previo del JSON ya existente y lo marca en "avisos".
+Variables de entorno
+--------------------
+    FMP_API_KEY   obligatoria para los fundamentales
+    FMP_ANOS      ejercicios a pedir (por defecto 5, el máximo del plan gratuito)
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 import io
 import json
@@ -26,6 +30,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,62 +47,71 @@ RAIZ = Path(__file__).resolve().parent.parent
 DIR_DATOS = RAIZ / "data"
 
 API_KEY = os.environ.get("FMP_API_KEY", "").strip()
-BASE_STABLE = "https://financialmodelingprep.com/stable"
+ANOS = int(os.environ.get("FMP_ANOS", "5"))
+BASE = "https://financialmodelingprep.com/stable"
 BASE_LEGACY = "https://financialmodelingprep.com/api/v3"
+PAUSA = 0.4
 
-ANOS_HISTORICO = 12          # ejercicios anuales a conservar
-TRIMESTRES_HISTORICO = 24    # trimestres a conservar (6 años)
-PAUSA = 0.35                 # segundos entre llamadas, para no saturar el plan gratuito
+contador = {"ok": 0, "fallo": 0}
 
 
 # --------------------------------------------------------------------------- #
-# utilidades HTTP
+# capa HTTP
 # --------------------------------------------------------------------------- #
 
-def _get(url: str, timeout: int = 30):
-    req = urllib.request.Request(url, headers={"User-Agent": "megacap-tracker/1.0"})
+def _get(url: str, timeout: int = 30) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "megacap-tracker/2.0"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
 
-def fmp(ruta_stable: str, ruta_legacy: str, **params):
-    """Llama a FMP probando la ruta stable y cayendo a la legacy si hace falta."""
+def fmp(ruta: str, ruta_legacy: str = "", **params):
+    """Llama a FMP. Registra en consola qué falla y por qué."""
     if not API_KEY:
         return None
 
-    intentos = [
-        f"{BASE_STABLE}/{ruta_stable}?" + urllib.parse.urlencode({**params, "apikey": API_KEY}),
-    ]
-    # La API legacy pone el símbolo en el path, no como query param.
-    simbolo = params.get("symbol")
+    simbolo = params.get("symbol", "")
+    urls = [f"{BASE}/{ruta}?" + urllib.parse.urlencode({**params, "apikey": API_KEY})]
     if ruta_legacy and simbolo:
-        legacy_params = {k: v for k, v in params.items() if k != "symbol"}
-        intentos.append(
-            f"{BASE_LEGACY}/{ruta_legacy}/{simbolo}?"
-            + urllib.parse.urlencode({**legacy_params, "apikey": API_KEY})
-        )
+        resto = {k: v for k, v in params.items() if k != "symbol"}
+        urls.append(f"{BASE_LEGACY}/{ruta_legacy}/{simbolo}?"
+                    + urllib.parse.urlencode({**resto, "apikey": API_KEY}))
 
-    for url in intentos:
+    ultimo_error = "sin respuesta"
+    for url in urls:
+        publica = url.split("&apikey=")[0].split("?apikey=")[0]
         try:
             datos = json.loads(_get(url))
-            if isinstance(datos, dict) and datos.get("Error Message"):
-                continue
-            if datos:
-                time.sleep(PAUSA)
+            if isinstance(datos, dict) and (datos.get("Error Message") or datos.get("error")):
+                ultimo_error = str(datos.get("Error Message") or datos.get("error"))[:160]
+            elif datos:
+                contador["ok"] += 1
                 return datos
-        except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
-            continue
+            else:
+                ultimo_error = "respuesta vacía"
+        except urllib.error.HTTPError as e:
+            cuerpo = ""
+            try:
+                cuerpo = e.read().decode("utf-8", "replace")[:160]
+            except Exception:
+                pass
+            ultimo_error = f"HTTP {e.code} {cuerpo}"
+        except Exception as e:  # noqa: BLE001
+            ultimo_error = f"{type(e).__name__}: {e}"
         finally:
             time.sleep(PAUSA)
+
+        print(f"   ! {publica} -> {ultimo_error}", file=sys.stderr)
+
+    contador["fallo"] += 1
     return None
 
 
-def campo(d: dict, *alias, defecto=None):
-    """Devuelve el primer alias presente y no nulo. Absorbe cambios de esquema de FMP."""
+def campo(d, *alias, defecto=None):
     if not isinstance(d, dict):
         return defecto
     for a in alias:
-        if a in d and d[a] is not None:
+        if d.get(a) is not None:
             return d[a]
     return defecto
 
@@ -110,53 +124,44 @@ def num(v):
         return None
 
 
+def div(a, b):
+    a, b = num(a), num(b)
+    return a / b if (a is not None and b) else None
+
+
 # --------------------------------------------------------------------------- #
-# respaldo de precios: Stooq
+# precios
 # --------------------------------------------------------------------------- #
 
 def precios_stooq(ticker: str):
-    """Serie diaria completa desde Stooq. Sin clave y con CORS abierto."""
-    url = f"https://stooq.com/q/d/l/?s={ticker.lower()}.us&i=d"
     try:
-        texto = _get(url).decode("utf-8", "replace")
+        texto = _get(f"https://stooq.com/q/d/l/?s={ticker.lower()}.us&i=d").decode("utf-8", "replace")
     except Exception:
         return []
-    filas = list(csv.DictReader(io.StringIO(texto)))
     salida = []
-    for f in filas:
+    for f in csv.DictReader(io.StringIO(texto)):
         c = num(f.get("Close"))
         if f.get("Date") and c:
             salida.append({"f": f["Date"], "c": round(c, 4), "v": num(f.get("Volume")) or 0})
     return salida
 
 
-# --------------------------------------------------------------------------- #
-# bloques de datos
-# --------------------------------------------------------------------------- #
-
 def serie_precios(ticker: str):
-    datos = fmp("historical-price-eod/full", "historical-price-full",
-                symbol=ticker, serietype="line")
-    filas = None
-    if isinstance(datos, dict):
-        filas = datos.get("historical")
-    elif isinstance(datos, list):
-        filas = datos
-
+    d = fmp("historical-price-eod/light", "historical-price-full", symbol=ticker)
+    filas = d.get("historical") if isinstance(d, dict) else d
     if filas:
         salida = []
         for f in filas:
             c = num(campo(f, "close", "adjClose", "price"))
             fecha = campo(f, "date")
             if fecha and c:
-                salida.append({"f": str(fecha)[:10], "c": round(c, 4),
-                               "v": num(campo(f, "volume")) or 0})
+                salida.append({"f": str(fecha)[:10], "c": round(c, 4), "v": num(campo(f, "volume")) or 0})
         salida.sort(key=lambda x: x["f"])
         if salida:
             return salida, "FMP"
 
-    stooq = precios_stooq(ticker)
-    return stooq, "Stooq" if stooq else "sin datos"
+    s = precios_stooq(ticker)
+    return s, ("Stooq" if s else "sin datos")
 
 
 def cotizacion(ticker: str):
@@ -178,37 +183,37 @@ def cotizacion(ticker: str):
     }
 
 
-def _serie_fundamental(ticker: str, periodo: str):
-    """Une key-metrics + ratios + cuentas en una sola serie temporal ordenada."""
-    limite = ANOS_HISTORICO if periodo == "annual" else TRIMESTRES_HISTORICO
+# --------------------------------------------------------------------------- #
+# fundamentales: 3 llamadas por valor
+# --------------------------------------------------------------------------- #
 
-    km = fmp("key-metrics", "key-metrics", symbol=ticker, period=periodo, limit=limite) or []
-    ra = fmp("ratios", "ratios", symbol=ticker, period=periodo, limit=limite) or []
-    pg = fmp("income-statement", "income-statement", symbol=ticker, period=periodo, limit=limite) or []
-    bl = fmp("balance-sheet-statement", "balance-sheet-statement", symbol=ticker, period=periodo, limit=limite) or []
-    cf = fmp("cash-flow-statement", "cash-flow-statement", symbol=ticker, period=periodo, limit=limite) or []
-    ev = fmp("enterprise-values", "enterprise-values", symbol=ticker, period=periodo, limit=limite) or []
+def fundamentales(ticker: str):
+    km = fmp("key-metrics", "key-metrics", symbol=ticker, period="annual", limit=ANOS) or []
+    pg = fmp("income-statement", "income-statement", symbol=ticker, period="annual", limit=ANOS) or []
+    bl = fmp("balance-sheet-statement", "balance-sheet-statement", symbol=ticker, period="annual", limit=ANOS) or []
+    cf = fmp("cash-flow-statement", "cash-flow-statement", symbol=ticker, period="annual", limit=ANOS) or []
 
-    def indexar(lista):
-        return {str(campo(x, "date", defecto=""))[:10]: x for x in lista if isinstance(x, dict)}
+    def idx(l):
+        return {str(campo(x, "date", defecto=""))[:10]: x for x in l if isinstance(x, dict)}
 
-    km_i, ra_i, pg_i, bl_i, cf_i, ev_i = map(indexar, (km, ra, pg, bl, cf, ev))
-    fechas = sorted(set().union(km_i, ra_i, pg_i, bl_i, cf_i, ev_i))
-
+    km_i, pg_i, bl_i, cf_i = idx(km), idx(pg), idx(bl), idx(cf)
     serie = []
-    for f in fechas:
-        k, r, p, b, c, e = (km_i.get(f, {}), ra_i.get(f, {}), pg_i.get(f, {}),
-                            bl_i.get(f, {}), cf_i.get(f, {}), ev_i.get(f, {}))
+
+    for f in sorted(set().union(km_i, pg_i, bl_i, cf_i)):
+        k, p, b, c = km_i.get(f, {}), pg_i.get(f, {}), bl_i.get(f, {}), cf_i.get(f, {})
 
         ingresos = num(campo(p, "revenue"))
         ebitda = num(campo(p, "ebitda", "EBITDA"))
         beneficio = num(campo(p, "netIncome"))
-        bpa = num(campo(p, "epsdiluted", "epsDiluted", "eps"))
-        margen_op = num(campo(p, "operatingIncomeRatio"))
+        capitalizacion = num(campo(k, "marketCap"))
+
+        # PER: el rendimiento sobre beneficio de key-metrics es el camino más fiable.
+        rendimiento = num(campo(k, "earningsYield"))
+        per = (1 / rendimiento) if (rendimiento and rendimiento > 0) else div(capitalizacion, beneficio)
 
         deuda_total = num(campo(b, "totalDebt"))
         caja = num(campo(b, "cashAndCashEquivalents", "cashAndShortTermInvestments"))
-        deuda_neta = num(campo(b, "netDebt", "netDebtToEBITDA"))
+        deuda_neta = num(campo(b, "netDebt"))
         if deuda_neta is None and deuda_total is not None and caja is not None:
             deuda_neta = deuda_total - caja
 
@@ -216,88 +221,82 @@ def _serie_fundamental(ticker: str, periodo: str):
         capex = num(campo(c, "capitalExpenditure"))
         fcl = num(campo(c, "freeCashFlow"))
         if fcl is None and fco is not None and capex is not None:
-            fcl = fco + capex  # capex viene en negativo
+            fcl = fco + capex  # el capex llega en negativo
 
-        valor_empresa = num(campo(e, "enterpriseValue")) or num(campo(k, "enterpriseValue"))
-
-        ev_ebitda = num(campo(k, "evToEBITDA", "enterpriseValueOverEBITDA", "evToOperatingCashFlow"))
-        if ev_ebitda is None and valor_empresa and ebitda:
-            ev_ebitda = valor_empresa / ebitda
-
-        ev_fcl = num(campo(k, "evToFreeCashFlow", "enterpriseValueOverFreeCashFlow"))
-        if ev_fcl is None and valor_empresa and fcl:
-            ev_fcl = valor_empresa / fcl
-
-        per = num(campo(r, "priceToEarningsRatio", "priceEarningsRatio", "peRatio"))
-        if per is None:
-            per = num(campo(k, "peRatio"))
-
-        dn_ebitda = num(campo(k, "netDebtToEBITDA"))
-        if dn_ebitda is None and deuda_neta is not None and ebitda:
-            dn_ebitda = deuda_neta / ebitda
+        valor_empresa = num(campo(k, "enterpriseValue"))
 
         serie.append({
             "f": f,
-            "ejercicio": campo(p, "calendarYear", "fiscalYear") or f[:4],
-            "periodo": campo(p, "period") or ("FY" if periodo == "annual" else ""),
+            "ejercicio": str(campo(k, "fiscalYear") or campo(p, "fiscalYear", "calendarYear") or f[:4]),
             "ingresos": ingresos,
             "ebitda": ebitda,
             "beneficio": beneficio,
-            "bpa": bpa,
-            "margenOperativo": margen_op,
-            "margenNeto": (beneficio / ingresos) if (beneficio and ingresos) else None,
+            "bpa": num(campo(p, "epsDiluted", "epsdiluted", "eps")),
+            "margenOperativo": num(campo(p, "operatingIncomeRatio")) or div(campo(p, "operatingIncome"), ingresos),
+            "margenNeto": div(beneficio, ingresos),
             "fcl": fcl,
             "capex": capex,
             "deudaTotal": deuda_total,
             "deudaNeta": deuda_neta,
             "caja": caja,
             "valorEmpresa": valor_empresa,
+            "capitalizacion": capitalizacion,
             "per": per,
-            "evEbitda": ev_ebitda,
-            "evFcl": ev_fcl,
-            "deudaNetaEbitda": dn_ebitda,
-            "roic": num(campo(k, "returnOnInvestedCapital", "roic")),
-            "roe": num(campo(r, "returnOnEquity")),
+            "evEbitda": num(campo(k, "evToEBITDA")) or div(valor_empresa, ebitda),
+            "evFcl": num(campo(k, "evToFreeCashFlow")) or div(valor_empresa, fcl),
+            "deudaNetaEbitda": num(campo(k, "netDebtToEBITDA")) or div(deuda_neta, ebitda),
+            "roic": num(campo(k, "returnOnInvestedCapital")),
+            "roe": num(campo(k, "returnOnEquity")),
         })
     return serie
 
 
+# --------------------------------------------------------------------------- #
+# noticias: RSS de Yahoo Finance, sin clave ni cuota
+# --------------------------------------------------------------------------- #
+
 def noticias(ticker: str, limite: int = 8):
-    d = (fmp("news/stock", "stock_news", symbols=ticker, symbol=ticker, limit=limite)
-         or fmp("news/stock-latest", "", symbols=ticker, limit=limite) or [])
+    url = (f"https://feeds.finance.yahoo.com/rss/2.0/headline"
+           f"?s={ticker}&region=US&lang=en-US")
+    try:
+        raiz = ET.fromstring(_get(url, timeout=20))
+    except Exception as e:  # noqa: BLE001
+        print(f"   ! RSS {ticker}: {e}", file=sys.stderr)
+        return []
+
     salida = []
-    for n in d if isinstance(d, list) else []:
-        salida.append({
-            "titulo": campo(n, "title"),
-            "fecha": str(campo(n, "publishedDate", "date", defecto=""))[:16],
-            "medio": campo(n, "publisher", "site"),
-            "url": campo(n, "url", "link"),
-        })
-    return [n for n in salida if n["titulo"] and n["url"]][:limite]
+    for it in raiz.iterfind(".//item"):
+        titulo = (it.findtext("title") or "").strip()
+        enlace = (it.findtext("link") or "").strip()
+        fecha = (it.findtext("pubDate") or "").strip()
+        if titulo and enlace:
+            salida.append({"titulo": titulo, "url": enlace,
+                           "medio": "Yahoo Finance", "fecha": fecha[5:22]})
+    return salida[:limite]
 
 
 # --------------------------------------------------------------------------- #
 # orquestación
 # --------------------------------------------------------------------------- #
 
-def anterior(ticker: str) -> dict:
+def leer(ticker: str) -> dict:
     ruta = DIR_DATOS / f"{ticker}.json"
     if ruta.exists():
         try:
             return json.loads(ruta.read_text("utf-8"))
         except json.JSONDecodeError:
-            return {}
+            pass
     return {}
 
 
-def procesar(ticker: str) -> dict:
-    print(f"-> {ticker}", flush=True)
-    previo = anterior(ticker)
+def procesar(ticker: str, completo: bool) -> dict:
+    print(f"-> {ticker} ({'completo' if completo else 'precios'})", flush=True)
+    previo = leer(ticker)
     avisos = []
 
     precios, fuente = serie_precios(ticker)
     if not precios:
-        precios = previo.get("precios", [])
+        precios, fuente = previo.get("precios", []), previo.get("fuentePrecios", "sin datos")
         avisos.append("serie de precios sin actualizar")
 
     q = cotizacion(ticker)
@@ -306,18 +305,17 @@ def procesar(ticker: str) -> dict:
         if len(precios) > 1:
             q["cambio"] = precios[-1]["c"] - precios[-2]["c"]
             q["cambioPct"] = q["cambio"] / precios[-2]["c"] * 100
-        avisos.append("cotización derivada de la serie diaria")
+        avisos.append("cotización derivada del último cierre")
 
-    anual = _serie_fundamental(ticker, "annual")
-    if not anual:
+    if completo:
+        anual = fundamentales(ticker)
+        if not anual:
+            anual = previo.get("anual", [])
+            avisos.append("fundamentales sin actualizar")
+        prensa = noticias(ticker) or previo.get("noticias", [])
+    else:
         anual = previo.get("anual", [])
-        avisos.append("fundamentales anuales sin actualizar")
-
-    trimestral = _serie_fundamental(ticker, "quarter")
-    if not trimestral:
-        trimestral = previo.get("trimestral", [])
-
-    prensa = noticias(ticker) or previo.get("noticias", [])
+        prensa = previo.get("noticias", [])
 
     return {
         "ticker": ticker,
@@ -325,61 +323,63 @@ def procesar(ticker: str) -> dict:
         "actualizado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "fuentePrecios": fuente,
         "cotizacion": q,
-        "precios": precios[-2600:],   # ~10 años de sesiones
+        "precios": precios[-2600:],
         "anual": anual,
-        "trimestral": trimestral,
         "noticias": prensa,
         "avisos": avisos,
     }
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--precios", action="store_true",
+                    help="solo precio y cotización, sin tocar fundamentales")
+    args = ap.parse_args()
+    completo = not args.precios
+
     DIR_DATOS.mkdir(parents=True, exist_ok=True)
     if not API_KEY:
-        print("AVISO: FMP_API_KEY no definida. Solo se descargarán precios desde Stooq.",
-              file=sys.stderr)
+        print("AVISO: FMP_API_KEY vacía. Solo habrá precios de Stooq.", file=sys.stderr)
+    else:
+        print(f"Plan configurado para {ANOS} ejercicios de histórico.")
 
     resumen = []
     for t in TICKERS:
         try:
-            d = procesar(t)
-        except Exception as e:  # noqa: BLE001 — un ticker roto no debe tumbar el workflow
+            d = procesar(t, completo)
+        except Exception as e:  # noqa: BLE001
             print(f"ERROR en {t}: {e}", file=sys.stderr)
-            d = anterior(t)
+            d = leer(t)
             if not d:
                 continue
-            d["avisos"] = (d.get("avisos") or []) + [f"fallo de descarga: {e}"]
+            d.setdefault("avisos", []).append(f"fallo de descarga: {e}")
 
         (DIR_DATOS / f"{t}.json").write_text(
-            json.dumps(d, ensure_ascii=False, separators=(",", ":")), "utf-8"
-        )
+            json.dumps(d, ensure_ascii=False, separators=(",", ":")), "utf-8")
 
-        ult = (d.get("anual") or [{}])[-1]
+        u = (d.get("anual") or [{}])[-1]
+        c = d.get("cotizacion") or {}
         resumen.append({
-            "ticker": t,
-            "nombre": d.get("nombre"),
-            "precio": (d.get("cotizacion") or {}).get("precio"),
-            "cambioPct": (d.get("cotizacion") or {}).get("cambioPct"),
-            "capitalizacion": (d.get("cotizacion") or {}).get("capitalizacion"),
-            "per": (d.get("cotizacion") or {}).get("per") or ult.get("per"),
-            "evEbitda": ult.get("evEbitda"),
-            "evFcl": ult.get("evFcl"),
-            "bpa": ult.get("bpa"),
-            "deudaNeta": ult.get("deudaNeta"),
-            "deudaNetaEbitda": ult.get("deudaNetaEbitda"),
-            "margenOperativo": ult.get("margenOperativo"),
+            "ticker": t, "nombre": d.get("nombre"),
+            "precio": c.get("precio"), "cambioPct": c.get("cambioPct"),
+            "capitalizacion": c.get("capitalizacion"),
+            "per": c.get("per") or u.get("per"),
+            "evEbitda": u.get("evEbitda"), "evFcl": u.get("evFcl"),
+            "bpa": u.get("bpa"), "deudaNeta": u.get("deudaNeta"),
+            "deudaNetaEbitda": u.get("deudaNetaEbitda"),
+            "margenOperativo": u.get("margenOperativo"),
             "avisos": d.get("avisos") or [],
         })
 
     (DIR_DATOS / "index.json").write_text(
-        json.dumps({
-            "actualizado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "tickers": TICKERS,
-            "resumen": resumen,
-        }, ensure_ascii=False, indent=1),
-        "utf-8",
-    )
-    print(f"Listo: {len(resumen)} valores escritos en {DIR_DATOS}")
+        json.dumps({"actualizado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "modo": "completo" if completo else "precios",
+                    "tickers": TICKERS, "resumen": resumen},
+                   ensure_ascii=False, indent=1), "utf-8")
+
+    print(f"\nLlamadas correctas: {contador['ok']} · fallidas: {contador['fallo']}")
+    con_datos = sum(1 for r in resumen if r["evEbitda"] is not None)
+    print(f"Valores con fundamentales: {con_datos}/{len(resumen)}")
     return 0
 
 
