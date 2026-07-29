@@ -1,21 +1,29 @@
 #!/usr/bin/env python3
 """
-Descarga y normaliza métricas de GOOGL, MSFT, META y AMZN.
+Métricas de GOOGL, MSFT, META y AMZN.
+
+Principio de diseño
+-------------------
+No se usa NINGÚN ratio precalculado del proveedor. FMP se emplea solo como fuente
+de cifras en bruto (ingresos, EBITDA, beneficio, capex, flujo operativo, deuda,
+caja, acciones, capitalización) y todos los múltiplos se derivan aquí con una
+única definición:
+
+    caja           = efectivo + inversiones a corto plazo
+    deuda neta     = deuda total - caja           (negativa = caja neta)
+    valor empresa  = capitalización + deuda neta
+    PER            = capitalización / beneficio
+    EV/EBITDA      = valor empresa / EBITDA
+    EV/FCF         = valor empresa / (flujo operativo - capex)
+
+Los datos TTM se obtienen sumando los cuatro últimos trimestres publicados, no
+de un endpoint aparte. Así el múltiplo de hoy y el rango histórico son
+directamente comparables, que es lo que hacía falta para las bandas.
 
 Uso
 ---
-    python scripts/fetch_data.py            # descarga completa
-    python scripts/fetch_data.py --precios  # solo precio y cotización (ligero)
-
-Presupuesto de llamadas (plan gratuito de FMP: 250/día)
--------------------------------------------------------
-    --precios   2 por valor  ->   8 por ejecución
-    completa    5 por valor  ->  20 por ejecución
-
-Variables de entorno
---------------------
-    FMP_API_KEY   obligatoria para los fundamentales
-    FMP_ANOS      ejercicios a pedir (por defecto 5, el máximo del plan gratuito)
+    python scripts/fetch_data.py            # completo    (9 llamadas por valor)
+    python scripts/fetch_data.py --precios  # solo precio (2 llamadas por valor)
 """
 
 from __future__ import annotations
@@ -35,7 +43,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 TICKERS = ["GOOGL", "MSFT", "META", "AMZN"]
-
 NOMBRES = {
     "GOOGL": "Alphabet Inc.",
     "MSFT": "Microsoft Corporation",
@@ -56,20 +63,18 @@ contador = {"ok": 0, "fallo": 0}
 
 
 # --------------------------------------------------------------------------- #
-# capa HTTP
+# HTTP
 # --------------------------------------------------------------------------- #
 
 def _get(url: str, timeout: int = 30) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "megacap-tracker/2.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "megacap-tracker/3.0"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
 
 def fmp(ruta: str, ruta_legacy: str = "", **params):
-    """Llama a FMP. Registra en consola qué falla y por qué."""
     if not API_KEY:
         return None
-
     simbolo = params.get("symbol", "")
     urls = [f"{BASE}/{ruta}?" + urllib.parse.urlencode({**params, "apikey": API_KEY})]
     if ruta_legacy and simbolo:
@@ -77,31 +82,28 @@ def fmp(ruta: str, ruta_legacy: str = "", **params):
         urls.append(f"{BASE_LEGACY}/{ruta_legacy}/{simbolo}?"
                     + urllib.parse.urlencode({**resto, "apikey": API_KEY}))
 
-    ultimo_error = "sin respuesta"
     for url in urls:
-        publica = url.split("&apikey=")[0].split("?apikey=")[0]
+        publica = url.split("apikey=")[0].rstrip("?&")
+        motivo = "sin respuesta"
         try:
             datos = json.loads(_get(url))
             if isinstance(datos, dict) and (datos.get("Error Message") or datos.get("error")):
-                ultimo_error = str(datos.get("Error Message") or datos.get("error"))[:160]
+                motivo = str(datos.get("Error Message") or datos.get("error"))[:150]
             elif datos:
                 contador["ok"] += 1
                 return datos
             else:
-                ultimo_error = "respuesta vacía"
+                motivo = "respuesta vacia"
         except urllib.error.HTTPError as e:
-            cuerpo = ""
             try:
-                cuerpo = e.read().decode("utf-8", "replace")[:160]
+                motivo = f"HTTP {e.code} {e.read().decode('utf-8', 'replace')[:150]}"
             except Exception:
-                pass
-            ultimo_error = f"HTTP {e.code} {cuerpo}"
+                motivo = f"HTTP {e.code}"
         except Exception as e:  # noqa: BLE001
-            ultimo_error = f"{type(e).__name__}: {e}"
+            motivo = f"{type(e).__name__}: {e}"
         finally:
             time.sleep(PAUSA)
-
-        print(f"   ! {publica} -> {ultimo_error}", file=sys.stderr)
+        print(f"   ! {publica} -> {motivo}", file=sys.stderr)
 
     contador["fallo"] += 1
     return None
@@ -125,8 +127,68 @@ def num(v):
 
 
 def div(a, b):
+    """Division defensiva: None si el denominador es nulo, cero o negativo."""
     a, b = num(a), num(b)
-    return a / b if (a is not None and b) else None
+    return a / b if (a is not None and b is not None and b > 0) else None
+
+
+def suma(valores):
+    v = [num(x) for x in valores]
+    return sum(x for x in v if x is not None) if any(x is not None for x in v) else None
+
+
+# --------------------------------------------------------------------------- #
+# extraccion de cifras en bruto
+# --------------------------------------------------------------------------- #
+
+def _resultados(p: dict) -> dict:
+    return {
+        "ingresos": num(campo(p, "revenue")),
+        "ebitda": num(campo(p, "ebitda", "EBITDA")),
+        "resultadoOperativo": num(campo(p, "operatingIncome")),
+        "beneficio": num(campo(p, "netIncome")),
+        "bpa": num(campo(p, "epsDiluted", "epsdiluted", "eps")),
+        "acciones": num(campo(p, "weightedAverageShsOutDil", "weightedAverageShsOut")),
+    }
+
+
+def _balance(b: dict) -> dict:
+    """Caja = efectivo + inversiones a corto. Sin esto estas companias parecen endeudadas."""
+    deuda = num(campo(b, "totalDebt"))
+    efectivo = num(campo(b, "cashAndCashEquivalents"))
+    corto = num(campo(b, "shortTermInvestments"))
+    caja = num(campo(b, "cashAndShortTermInvestments"))
+    if caja is None and efectivo is not None:
+        caja = efectivo + (corto or 0)
+    return {
+        "deudaTotal": deuda,
+        "caja": caja,
+        "deudaNeta": (deuda - caja) if (deuda is not None and caja is not None) else None,
+        "patrimonio": num(campo(b, "totalStockholdersEquity", "totalEquity")),
+    }
+
+
+def _caja(c: dict) -> dict:
+    fco = num(campo(c, "operatingCashFlow", "netCashProvidedByOperatingActivities"))
+    capex = num(campo(c, "capitalExpenditure"))
+    fcl = num(campo(c, "freeCashFlow"))
+    if fcl is None and fco is not None and capex is not None:
+        fcl = fco + capex  # el capex llega con signo negativo
+    return {"flujoOperativo": fco, "capex": capex, "fcl": fcl}
+
+
+def _multiplos(capitalizacion, deuda_neta, beneficio, ebitda, fcl) -> dict:
+    ve = ((capitalizacion + deuda_neta)
+          if (capitalizacion is not None and deuda_neta is not None) else None)
+    positivo = ve is not None and ve > 0
+    return {
+        "valorEmpresa": ve,
+        "per": div(capitalizacion, beneficio),
+        "evEbitda": div(ve, ebitda) if positivo else None,
+        "evFcl": div(ve, fcl) if positivo else None,
+        "deudaNetaEbitda": (div(deuda_neta, ebitda)
+                            if (deuda_neta is not None and deuda_neta > 0) else None),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -135,31 +197,30 @@ def div(a, b):
 
 def precios_stooq(ticker: str):
     try:
-        texto = _get(f"https://stooq.com/q/d/l/?s={ticker.lower()}.us&i=d").decode("utf-8", "replace")
+        t = _get(f"https://stooq.com/q/d/l/?s={ticker.lower()}.us&i=d").decode("utf-8", "replace")
     except Exception:
         return []
-    salida = []
-    for f in csv.DictReader(io.StringIO(texto)):
+    out = []
+    for f in csv.DictReader(io.StringIO(t)):
         c = num(f.get("Close"))
         if f.get("Date") and c:
-            salida.append({"f": f["Date"], "c": round(c, 4), "v": num(f.get("Volume")) or 0})
-    return salida
+            out.append({"f": f["Date"], "c": round(c, 4), "v": num(f.get("Volume")) or 0})
+    return out
 
 
 def serie_precios(ticker: str):
     d = fmp("historical-price-eod/light", "historical-price-full", symbol=ticker)
     filas = d.get("historical") if isinstance(d, dict) else d
     if filas:
-        salida = []
+        out = []
         for f in filas:
             c = num(campo(f, "close", "adjClose", "price"))
-            fecha = campo(f, "date")
-            if fecha and c:
-                salida.append({"f": str(fecha)[:10], "c": round(c, 4), "v": num(campo(f, "volume")) or 0})
-        salida.sort(key=lambda x: x["f"])
-        if salida:
-            return salida, "FMP"
-
+            fe = campo(f, "date")
+            if fe and c:
+                out.append({"f": str(fe)[:10], "c": round(c, 4), "v": num(campo(f, "volume")) or 0})
+        out.sort(key=lambda x: x["f"])
+        if out:
+            return out, "FMP"
     s = precios_stooq(ticker)
     return s, ("Stooq" if s else "sin datos")
 
@@ -178,16 +239,14 @@ def cotizacion(ticker: str):
         "volumen": num(campo(d, "volume")),
         "max52": num(campo(d, "yearHigh")),
         "min52": num(campo(d, "yearLow")),
-        "per": num(campo(d, "pe")),
-        "bpaTTM": num(campo(d, "eps")),
     }
 
 
 # --------------------------------------------------------------------------- #
-# fundamentales: 3 llamadas por valor
+# serie anual
 # --------------------------------------------------------------------------- #
 
-def fundamentales(ticker: str):
+def serie_anual(ticker: str):
     km = fmp("key-metrics", "key-metrics", symbol=ticker, period="annual", limit=ANOS) or []
     pg = fmp("income-statement", "income-statement", symbol=ticker, period="annual", limit=ANOS) or []
     bl = fmp("balance-sheet-statement", "balance-sheet-statement", symbol=ticker, period="annual", limit=ANOS) or []
@@ -200,170 +259,150 @@ def fundamentales(ticker: str):
     serie = []
 
     for f in sorted(set().union(km_i, pg_i, bl_i, cf_i)):
-        k, p, b, c = km_i.get(f, {}), pg_i.get(f, {}), bl_i.get(f, {}), cf_i.get(f, {})
+        k = km_i.get(f, {})
+        r = _resultados(pg_i.get(f, {}))
+        b = _balance(bl_i.get(f, {}))
+        c = _caja(cf_i.get(f, {}))
 
-        ingresos = num(campo(p, "revenue"))
-        ebitda = num(campo(p, "ebitda", "EBITDA"))
-        beneficio = num(campo(p, "netIncome"))
+        # Capitalizacion al cierre del ejercicio: unica cifra de mercado tomada del
+        # proveedor, porque no se puede reconstruir desde las cuentas.
         capitalizacion = num(campo(k, "marketCap"))
-
-        # PER: el rendimiento sobre beneficio de key-metrics es el camino más fiable.
-        rendimiento = num(campo(k, "earningsYield"))
-        per = (1 / rendimiento) if (rendimiento and rendimiento > 0) else div(capitalizacion, beneficio)
-
-        # Deuda neta calculada aquí y no tomada de FMP: su campo netDebt resta solo
-        # la caja inmediata, e ignora los valores negociables. Para estas cuatro
-        # compañías, que guardan casi toda su liquidez en cartera de renta fija, eso
-        # convierte posiciones de caja neta en falso endeudamiento.
-        deuda_total = num(campo(b, "totalDebt"))
-        efectivo = num(campo(b, "cashAndCashEquivalents"))
-        inversiones_cp = num(campo(b, "shortTermInvestments")) or 0
-        caja = num(campo(b, "cashAndShortTermInvestments"))
-        if caja is None and efectivo is not None:
-            caja = efectivo + inversiones_cp
-
-        if deuda_total is not None and caja is not None:
-            deuda_neta = deuda_total - caja
-        else:
-            deuda_neta = num(campo(b, "netDebt"))
-
-        fco = num(campo(c, "operatingCashFlow", "netCashProvidedByOperatingActivities"))
-        capex = num(campo(c, "capitalExpenditure"))
-        fcl = num(campo(c, "freeCashFlow"))
-        if fcl is None and fco is not None and capex is not None:
-            fcl = fco + capex  # el capex llega en negativo
-
-        valor_empresa = num(campo(k, "enterpriseValue"))
+        m = _multiplos(capitalizacion, b["deudaNeta"], r["beneficio"], r["ebitda"], c["fcl"])
 
         serie.append({
             "f": f,
-            "ejercicio": str(campo(k, "fiscalYear") or campo(p, "fiscalYear", "calendarYear") or f[:4]),
-            "ingresos": ingresos,
-            "ebitda": ebitda,
-            "beneficio": beneficio,
-            "bpa": num(campo(p, "epsDiluted", "epsdiluted", "eps")),
-            "margenOperativo": num(campo(p, "operatingIncomeRatio")) or div(campo(p, "operatingIncome"), ingresos),
-            "margenNeto": div(beneficio, ingresos),
-            "fcl": fcl,
-            "capex": capex,
-            "deudaTotal": deuda_total,
-            "deudaNeta": deuda_neta,
-            "caja": caja,
-            "valorEmpresa": valor_empresa,
+            "ejercicio": str(campo(k, "fiscalYear")
+                             or campo(pg_i.get(f, {}), "fiscalYear", "calendarYear")
+                             or f[:4]),
+            **r, **b, **c, **m,
             "capitalizacion": capitalizacion,
-            "per": per,
-            "evEbitda": num(campo(k, "evToEBITDA")) or div(valor_empresa, ebitda),
-            "evFcl": num(campo(k, "evToFreeCashFlow")) or div(valor_empresa, fcl),
-            "deudaNetaEbitda": num(campo(k, "netDebtToEBITDA")) or div(deuda_neta, ebitda),
+            "margenOperativo": div(r["resultadoOperativo"], r["ingresos"]),
+            "margenNeto": div(r["beneficio"], r["ingresos"]),
+            "margenFcl": div(c["fcl"], r["ingresos"]),
             "roic": num(campo(k, "returnOnInvestedCapital")),
-            "roe": num(campo(k, "returnOnEquity")),
-            "acciones": div(beneficio, num(campo(p, "epsDiluted", "epsdiluted", "eps"))),
-            "margenFcl": div(fcl, ingresos),
+            "roe": num(campo(k, "returnOnEquity")) or div(r["beneficio"], b["patrimonio"]),
         })
 
-    # crecimiento interanual de ingresos, una vez ordenada la serie
     for i, x in enumerate(serie):
         prev = serie[i - 1]["ingresos"] if i else None
-        x["crecimientoIngresos"] = ((x["ingresos"] / prev - 1)
-                                    if (prev and x["ingresos"]) else None)
+        x["crecimientoIngresos"] = (x["ingresos"] / prev - 1) if (prev and x["ingresos"]) else None
     return serie
 
 
 # --------------------------------------------------------------------------- #
-# múltiplos corrientes (TTM)
+# TTM por suma de los cuatro ultimos trimestres
 # --------------------------------------------------------------------------- #
 
-def ttm(ticker: str, q: dict, anual: list) -> dict:
-    """
-    Múltiplos con la capitalización de HOY sobre los últimos doce meses.
+def serie_ttm(ticker: str, q: dict, anual: list) -> dict:
+    pg = fmp("income-statement", "income-statement", symbol=ticker, period="quarter", limit=5) or []
+    bl = fmp("balance-sheet-statement", "balance-sheet-statement", symbol=ticker, period="quarter", limit=2) or []
+    cf = fmp("cash-flow-statement", "cash-flow-statement", symbol=ticker, period="quarter", limit=5) or []
 
-    Los ratios anuales de FMP usan la capitalización del cierre de cada ejercicio,
-    así que no sirven para saber a cuánto cotiza la empresa ahora. Aquí se pide
-    primero el bloque TTM del proveedor y, si no está disponible en el plan, se
-    reconstruye con el precio actual y los últimos fundamentales publicados.
-    """
-    km = fmp("key-metrics-ttm", "key-metrics-ttm", symbol=ticker)
-    ra = fmp("ratios-ttm", "ratios-ttm", symbol=ticker)
-    km = km[0] if isinstance(km, list) and km else (km if isinstance(km, dict) else {})
-    ra = ra[0] if isinstance(ra, list) and ra else (ra if isinstance(ra, dict) else {})
+    def ordenar(l):
+        return sorted([x for x in l if isinstance(x, dict)],
+                      key=lambda x: str(campo(x, "date", defecto="")))
 
+    pg, bl, cf = ordenar(pg), ordenar(bl), ordenar(cf)
     u = anual[-1] if anual else {}
     capitalizacion = num(q.get("capitalizacion"))
-    deuda_neta = num(u.get("deudaNeta"))
-    valor_empresa = (capitalizacion + deuda_neta) if (capitalizacion is not None and deuda_neta is not None) else None
 
-    # BPA: el de los últimos doce meses manda sobre el del ejercicio cerrado.
-    bpa = num(q.get("bpaTTM")) or num(campo(ra, "netIncomePerShareTTM")) or num(u.get("bpa"))
+    # Sin cuatro trimestres no hay TTM: se usa el ejercicio cerrado y se avisa,
+    # en vez de publicar una cifra a medias que parezca actual.
+    if len(pg) < 4 or len(cf) < 4:
+        b = _balance(bl[-1]) if bl else {
+            "deudaTotal": u.get("deudaTotal"), "caja": u.get("caja"),
+            "deudaNeta": u.get("deudaNeta"), "patrimonio": None}
+        m = _multiplos(capitalizacion, b["deudaNeta"], u.get("beneficio"),
+                       u.get("ebitda"), u.get("fcl"))
+        return {
+            "base": f"ejercicio {u.get('ejercicio', '-')} (sin trimestres para TTM)",
+            "completo": False,
+            "cierre": u.get("f"),
+            **{k: u.get(k) for k in ("ingresos", "ebitda", "beneficio", "bpa", "acciones",
+                                     "fcl", "capex", "margenOperativo", "margenNeto",
+                                     "margenFcl", "crecimientoIngresos", "roic")},
+            **b, **m,
+        }
 
-    ebitda = num(campo(km, "ebitdaTTM")) or num(u.get("ebitda"))
-    fcl = num(campo(km, "freeCashFlowTTM")) or num(u.get("fcl"))
-    beneficio = num(campo(km, "netIncomeTTM")) or num(u.get("beneficio"))
+    p4, c4 = pg[-4:], cf[-4:]
+    ingresos = suma(x.get("revenue") for x in p4)
+    ebitda = suma(campo(x, "ebitda", "EBITDA") for x in p4)
+    operativo = suma(x.get("operatingIncome") for x in p4)
+    beneficio = suma(x.get("netIncome") for x in p4)
 
-    per = (num(q.get("per"))
-           or num(campo(ra, "priceToEarningsRatioTTM", "peRatioTTM"))
-           or div(q.get("precio"), bpa)
-           or div(capitalizacion, beneficio))
+    fco = suma(campo(x, "operatingCashFlow", "netCashProvidedByOperatingActivities") for x in c4)
+    capex = suma(x.get("capitalExpenditure") for x in c4)
+    fcl = (fco + capex) if (fco is not None and capex is not None) else None
+
+    acciones = num(campo(p4[-1], "weightedAverageShsOutDil", "weightedAverageShsOut"))
+    bpa = div(beneficio, acciones)
+
+    b = _balance(bl[-1]) if bl else {
+        "deudaTotal": None, "caja": None, "deudaNeta": u.get("deudaNeta"), "patrimonio": None}
+    m = _multiplos(capitalizacion, b["deudaNeta"], beneficio, ebitda, fcl)
 
     return {
-        "base": "capitalización actual sobre últimos doce meses",
-        "ejercicioBase": u.get("ejercicio"),
-        "bpa": bpa,
-        "valorEmpresa": valor_empresa,
-        "per": per,
-        "evEbitda": num(campo(km, "evToEBITDATTM")) or div(valor_empresa, ebitda),
-        "evFcl": num(campo(km, "evToFreeCashFlowTTM")) or div(valor_empresa, fcl),
-        "deudaNetaEbitda": div(deuda_neta, ebitda),
-        "margenOperativo": num(u.get("margenOperativo")),
+        "base": "suma de los cuatro ultimos trimestres",
+        "completo": True,
+        "cierre": str(campo(p4[-1], "date", defecto=""))[:10],
+        "ingresos": ingresos, "ebitda": ebitda, "beneficio": beneficio,
+        "bpa": bpa, "acciones": acciones, "fcl": fcl, "capex": capex,
+        "margenOperativo": div(operativo, ingresos),
+        "margenNeto": div(beneficio, ingresos),
+        "margenFcl": div(fcl, ingresos),
         "crecimientoIngresos": num(u.get("crecimientoIngresos")),
-        "acciones": num(u.get("acciones")),
-        "cajaNeta": (-deuda_neta) if deuda_neta is not None else None,
-        "roic": num(campo(km, "returnOnInvestedCapitalTTM")) or num(u.get("roic")),
-        "deudaNeta": deuda_neta,
+        "roic": num(u.get("roic")),
+        **b, **m,
     }
 
 
 # --------------------------------------------------------------------------- #
-# noticias: RSS de Yahoo Finance, sin clave ni cuota
+# noticias
 # --------------------------------------------------------------------------- #
 
 def noticias(ticker: str, limite: int = 8):
-    url = (f"https://feeds.finance.yahoo.com/rss/2.0/headline"
-           f"?s={ticker}&region=US&lang=en-US")
+    url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
     try:
         raiz = ET.fromstring(_get(url, timeout=20))
     except Exception as e:  # noqa: BLE001
         print(f"   ! RSS {ticker}: {e}", file=sys.stderr)
         return []
-
-    salida = []
+    out = []
     for it in raiz.iterfind(".//item"):
-        titulo = (it.findtext("title") or "").strip()
+        t = (it.findtext("title") or "").strip()
         enlace = (it.findtext("link") or "").strip()
-        fecha = (it.findtext("pubDate") or "").strip()
-        if titulo and enlace:
-            salida.append({"titulo": titulo, "url": enlace,
-                           "medio": "Yahoo Finance", "fecha": fecha[5:22]})
-    return salida[:limite]
+        f = (it.findtext("pubDate") or "").strip()
+        if t and enlace:
+            out.append({"titulo": t, "url": enlace, "medio": "Yahoo Finance", "fecha": f[5:22]})
+    return out[:limite]
 
 
 # --------------------------------------------------------------------------- #
-# orquestación
+# orquestacion
 # --------------------------------------------------------------------------- #
 
 def leer(ticker: str) -> dict:
-    ruta = DIR_DATOS / f"{ticker}.json"
-    if ruta.exists():
+    r = DIR_DATOS / f"{ticker}.json"
+    if r.exists():
         try:
-            return json.loads(ruta.read_text("utf-8"))
+            return json.loads(r.read_text("utf-8"))
         except json.JSONDecodeError:
             pass
     return {}
 
 
+def reescalar(ttm: dict, capitalizacion) -> dict:
+    """En modo ligero cambia el precio: se rehacen los multiplos sin pedir cuentas."""
+    if not ttm or capitalizacion is None:
+        return ttm
+    m = _multiplos(capitalizacion, num(ttm.get("deudaNeta")), ttm.get("beneficio"),
+                   ttm.get("ebitda"), ttm.get("fcl"))
+    return {**ttm, **m}
+
+
 def procesar(ticker: str, completo: bool) -> dict:
     print(f"-> {ticker} ({'completo' if completo else 'precios'})", flush=True)
-    previo = leer(ticker)
-    avisos = []
+    previo, avisos = leer(ticker), []
 
     precios, fuente = serie_precios(ticker)
     if not precios:
@@ -376,61 +415,43 @@ def procesar(ticker: str, completo: bool) -> dict:
         if len(precios) > 1:
             q["cambio"] = precios[-1]["c"] - precios[-2]["c"]
             q["cambioPct"] = q["cambio"] / precios[-2]["c"] * 100
-        avisos.append("cotización derivada del último cierre")
+        avisos.append("cotizacion derivada del ultimo cierre")
 
     if completo:
-        anual = fundamentales(ticker)
+        anual = serie_anual(ticker)
         if not anual:
             anual = previo.get("anual", [])
             avisos.append("fundamentales sin actualizar")
+        ttm = serie_ttm(ticker, q, anual)
+        if not ttm.get("completo"):
+            avisos.append("TTM incompleto: se muestra el ultimo ejercicio cerrado")
         prensa = noticias(ticker) or previo.get("noticias", [])
-        corriente = ttm(ticker, q, anual)
     else:
         anual = previo.get("anual", [])
+        ttm = reescalar(previo.get("ttm") or {}, q.get("capitalizacion"))
         prensa = previo.get("noticias", [])
-        # En modo ligero el precio cambia, así que hay que rehacer los múltiplos.
-        corriente = previo.get("ttm") or {}
-        cap, dn = num(q.get("capitalizacion")), num(corriente.get("deudaNeta"))
-        if cap is not None and dn is not None:
-            ve_antes = num(corriente.get("valorEmpresa"))
-            ve_ahora = cap + dn
-            if ve_antes:
-                factor = ve_ahora / ve_antes
-                for k in ("evEbitda", "evFcl"):
-                    if corriente.get(k):
-                        corriente[k] = corriente[k] * factor
-            corriente["valorEmpresa"] = ve_ahora
-        if q.get("per"):
-            corriente["per"] = q["per"]
-        if q.get("bpaTTM"):
-            corriente["bpa"] = q["bpaTTM"]
 
     return {
-        "ticker": ticker,
-        "nombre": NOMBRES[ticker],
+        "ticker": ticker, "nombre": NOMBRES[ticker],
         "actualizado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "fuentePrecios": fuente,
-        "cotizacion": q,
-        "precios": precios[-2600:],
-        "anual": anual,
-        "ttm": corriente,
-        "noticias": prensa,
-        "avisos": avisos,
+        "fuentePrecios": fuente, "cotizacion": q,
+        "precios": precios[-2600:], "anual": anual, "ttm": ttm,
+        "noticias": prensa, "avisos": avisos,
     }
+
+
+def _fmt(v, d=1):
+    return "-" if v is None else f"{v:.{d}f}"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--precios", action="store_true",
-                    help="solo precio y cotización, sin tocar fundamentales")
-    args = ap.parse_args()
-    completo = not args.precios
+    ap.add_argument("--precios", action="store_true")
+    completo = not ap.parse_args().precios
 
     DIR_DATOS.mkdir(parents=True, exist_ok=True)
     if not API_KEY:
-        print("AVISO: FMP_API_KEY vacía. Solo habrá precios de Stooq.", file=sys.stderr)
-    else:
-        print(f"Plan configurado para {ANOS} ejercicios de histórico.")
+        print("AVISO: FMP_API_KEY vacia. Solo habra precios de Stooq.", file=sys.stderr)
 
     resumen = []
     for t in TICKERS:
@@ -446,22 +467,23 @@ def main() -> int:
         (DIR_DATOS / f"{t}.json").write_text(
             json.dumps(d, ensure_ascii=False, separators=(",", ":")), "utf-8")
 
-        u = (d.get("anual") or [{}])[-1]
-        c = d.get("cotizacion") or {}
         m = d.get("ttm") or {}
+        c = d.get("cotizacion") or {}
         resumen.append({
             "ticker": t, "nombre": d.get("nombre"),
             "precio": c.get("precio"), "cambioPct": c.get("cambioPct"),
             "capitalizacion": c.get("capitalizacion"),
-            "per": m.get("per") or c.get("per"),
-            "evEbitda": m.get("evEbitda"), "evFcl": m.get("evFcl"),
-            "bpa": m.get("bpa") or c.get("bpaTTM"),
-            "deudaNeta": m.get("deudaNeta") or u.get("deudaNeta"),
+            "per": m.get("per"), "evEbitda": m.get("evEbitda"), "evFcl": m.get("evFcl"),
+            "bpa": m.get("bpa"), "deudaNeta": m.get("deudaNeta"),
             "deudaNetaEbitda": m.get("deudaNetaEbitda"),
             "margenOperativo": m.get("margenOperativo"),
-            "ejercicioBase": m.get("ejercicioBase"),
-            "avisos": d.get("avisos") or [],
+            "base": m.get("base"), "avisos": d.get("avisos") or [],
         })
+
+        # Control de coherencia en el propio registro, para poder auditarlo a simple vista.
+        print(f"   BPA {_fmt(m.get('bpa'), 2):>7}  PER {_fmt(m.get('per')):>6}  "
+              f"EV/EBITDA {_fmt(m.get('evEbitda')):>6}  EV/FCF {_fmt(m.get('evFcl')):>7}  "
+              f"[{m.get('base')}]")
 
     (DIR_DATOS / "index.json").write_text(
         json.dumps({"actualizado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -469,9 +491,8 @@ def main() -> int:
                     "tickers": TICKERS, "resumen": resumen},
                    ensure_ascii=False, indent=1), "utf-8")
 
-    print(f"\nLlamadas correctas: {contador['ok']} · fallidas: {contador['fallo']}")
-    con_datos = sum(1 for r in resumen if r["evEbitda"] is not None)
-    print(f"Valores con fundamentales: {con_datos}/{len(resumen)}")
+    print(f"\nLlamadas correctas: {contador['ok']} - fallidas: {contador['fallo']}")
+    print(f"Valores con multiplos: {sum(1 for r in resumen if r['evEbitda'])}/{len(resumen)}")
     return 0
 
 
