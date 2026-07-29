@@ -20,11 +20,13 @@ const pctDir = v => v == null ? '—' : (v >= 0 ? '+' : '') + nf(2).format(v) + 
 function grande(v) {
   if (v == null) return '—';
   const s = v < 0 ? '−' : '', a = Math.abs(v);
-  if (a >= 1e12) return `${s}$${nf(2).format(a / 1e12)} B`;   // billones españoles
-  if (a >= 1e9) return `${s}$${nf(1).format(a / 1e9)} mm`;
+  if (a >= 1e12) return `${s}$${nf(2).format(a / 1e12)} bill.`;
+  if (a >= 1e9) return `${s}$${nf(1).format(a / 1e9)} mil M`;
   if (a >= 1e6) return `${s}$${nf(0).format(a / 1e6)} M`;
   return s + '$' + nf(0).format(a);
 }
+
+const acciones = v => v == null ? '—' : nf(2).format(v / 1e9) + ' mil M';
 
 const fechaES = iso => !iso ? '—'
   : new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -151,18 +153,28 @@ function chispa(d) {
 /* ---------------------------------------------------------------- kpis -- */
 function ultimo(d) { return (d.anual || []).at(-1) || {}; }
 
+/* Estas compañías suelen tener más liquidez que deuda: el rótulo debe decirlo. */
+function deudaNetaTitulo(m, u) {
+  const v = m.deudaNeta ?? u.deudaNeta;
+  return (v != null && v < 0) ? 'Caja neta' : 'Deuda neta';
+}
+
 function kpis(d) {
-  const q = d.cotizacion || {}, u = ultimo(d);
+  const q = d.cotizacion || {}, u = ultimo(d), m = d.ttm || {};
+  const ej = m.ejercicioBase || u.ejercicio || '—';
   const items = [
     ['Capitalización', grande(q.capitalizacion), 'valor de mercado'],
-    ['PER', mult(q.per ?? u.per), 'beneficio TTM'],
-    ['EV / EBITDA', mult(u.evEbitda), `ejercicio ${u.ejercicio || '—'}`],
-    ['EV / FCF', mult(u.evFcl), 'free cash flow'],
-    ['BPA diluido', dinero(u.bpa), `ejercicio ${u.ejercicio || '—'}`],
-    ['Deuda neta', grande(u.deudaNeta), u.deudaNeta < 0 ? 'caja neta' : 'endeudamiento'],
-    ['DN / EBITDA', mult(u.deudaNetaEbitda), 'apalancamiento'],
-    ['Margen operativo', pct(u.margenOperativo), 'sobre ingresos'],
-    ['ROIC', pct(u.roic), 'capital invertido'],
+    ['PER', mult(m.per ?? q.per), 'precio actual / BPA 12 m'],
+    ['EV / EBITDA', mult(m.evEbitda), 'con capitalización de hoy'],
+    ['EV / FCF', mult(m.evFcl), 'con capitalización de hoy'],
+    ['BPA', dinero(m.bpa ?? q.bpaTTM), 'últimos doce meses'],
+    ['Ingresos', grande(u.ingresos), `ejercicio ${ej}`],
+    ['Crecimiento', pct(m.crecimientoIngresos ?? u.crecimientoIngresos), 'ingresos, interanual'],
+    [deudaNetaTitulo(m, u), grande(Math.abs(m.deudaNeta ?? u.deudaNeta ?? 0)) , `balance ${ej}`],
+    ['DN / EBITDA', mult(m.deudaNetaEbitda), (m.deudaNeta ?? u.deudaNeta) < 0 ? 'sin deuda neta' : 'apalancamiento'],
+    ['Margen operativo', pct(m.margenOperativo ?? u.margenOperativo), `ejercicio ${ej}`],
+    ['ROIC', pct(m.roic ?? u.roic), 'capital invertido'],
+    ['Acciones', acciones(m.acciones ?? u.acciones), 'diluidas en circulación'],
     ['Rango 52 sem.', `${dinero(q.min52)} – ${dinero(q.max52)}`, 'mínimo y máximo'],
   ];
   $('#kpis').innerHTML = items.map(([t, v, n]) =>
@@ -181,7 +193,7 @@ function bandas(d) {
 
   $('#bandas').innerHTML = defs.map(([titulo, clave]) => {
     const vals = serie.map(x => x[clave]).filter(v => v != null && isFinite(v) && v > 0).sort((a, b) => a - b);
-    const actual = clave === 'per' ? ((d.cotizacion || {}).per ?? ultimo(d).per) : ultimo(d)[clave];
+    const actual = (d.ttm || {})[clave] ?? ((d.cotizacion || {}).per && clave === 'per' ? d.cotizacion.per : ultimo(d)[clave]);
 
     if (vals.length < 3 || actual == null || !isFinite(actual) || actual <= 0) {
       return `<div class="banda"><div class="banda-cab"><span class="banda-t">${titulo}</span>
@@ -358,7 +370,8 @@ function tablaComparativa() {
     ['EV/EBITDA', r => mult(r.evEbitda)],
     ['EV/FCF', r => mult(r.evFcl)],
     ['BPA', r => dinero(r.bpa)],
-    ['Deuda neta', r => grande(r.deudaNeta)],
+    ['Deuda / caja neta', r => r.deudaNeta == null ? '—'
+        : `<span class="${r.deudaNeta < 0 ? 'sube' : ''}">${r.deudaNeta < 0 ? 'caja ' : ''}${grande(Math.abs(r.deudaNeta))}</span>`],
     ['DN/EBITDA', r => mult(r.deudaNetaEbitda)],
     ['Margen op.', r => pct(r.margenOperativo)],
   ];
