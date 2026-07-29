@@ -1,5 +1,6 @@
 {
- "actualizado": "2026-07-29T09:37:57+00:00",
+ "actualizado": "2026-07-29T09:57:36+00:00",
+ "modo": "completo",
  "tickers": [
   "GOOGL",
   "MSFT",
@@ -13,16 +14,14 @@
    "precio": 333.71,
    "cambioPct": 2.18949,
    "capitalizacion": 4038595557251.0005,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": null,
-   "deudaNeta": null,
-   "deudaNetaEbitda": null,
-   "margenOperativo": null,
-   "avisos": [
-    "fundamentales anuales sin actualizar"
-   ]
+   "per": 28.692653400923056,
+   "evEbitda": 21.231654460386082,
+   "evFcl": 52.15094313870008,
+   "bpa": 10.81,
+   "deudaNeta": 28583000000.0,
+   "deudaNetaEbitda": 0.1588279747946789,
+   "margenOperativo": 0.3205405955385482,
+   "avisos": []
   },
   {
    "ticker": "MSFT",
@@ -30,16 +29,14 @@
    "precio": 393.35,
    "cambioPct": 1.09226,
    "capitalizacion": 2921972940500.0,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": null,
-   "deudaNeta": null,
-   "deudaNetaEbitda": null,
-   "margenOperativo": null,
-   "avisos": [
-    "fundamentales anuales sin actualizar"
-   ]
+   "per": 36.307334924188865,
+   "evEbitda": 23.595607841913026,
+   "evFcl": 52.77388292301462,
+   "bpa": 13.64,
+   "deudaNeta": 81942000000.0,
+   "deudaNetaEbitda": 0.5116099022882652,
+   "margenOperativo": 0.4562195624085985,
+   "avisos": []
   },
   {
    "ticker": "META",
@@ -47,16 +44,14 @@
    "precio": 593.41,
    "cambioPct": -0.07745803,
    "capitalizacion": 1506325692123.0,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": null,
-   "deudaNeta": null,
-   "deudaNetaEbitda": null,
-   "margenOperativo": null,
-   "avisos": [
-    "fundamentales anuales sin actualizar"
-   ]
+   "per": 27.524676469615272,
+   "evEbitda": 16.376314133221104,
+   "evFcl": 37.131815697586156,
+   "bpa": 23.49,
+   "deudaNeta": 48024000000.0,
+   "deudaNetaEbitda": 0.4593488158549183,
+   "margenOperativo": 0.41437855159579234,
+   "avisos": []
   },
   {
    "ticker": "AMZN",
@@ -64,16 +59,14 @@
    "precio": 230.86,
    "cambioPct": -0.22905,
    "capitalizacion": 2483384106000.0,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": null,
-   "deudaNeta": null,
-   "deudaNetaEbitda": null,
-   "margenOperativo": null,
-   "avisos": [
-    "fundamentales anuales sin actualizar"
-   ]
+   "per": 31.66754113557358,
+   "evEbitda": 15.276277027476548,
+   "evFcl": 328.2384561403509,
+   "bpa": 7.17,
+   "deudaNeta": 66177000000.0,
+   "deudaNetaEbitda": 0.40024555312959276,
+   "margenOperativo": 0.11155296795755199,
+   "avisos": []
   }
  ]
 }
