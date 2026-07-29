@@ -1,10 +1,79 @@
 {
- "actualizado": null,
+ "actualizado": "2026-07-29T09:37:57+00:00",
  "tickers": [
   "GOOGL",
   "MSFT",
   "META",
   "AMZN"
  ],
- "resumen": []
+ "resumen": [
+  {
+   "ticker": "GOOGL",
+   "nombre": "Alphabet Inc.",
+   "precio": 333.71,
+   "cambioPct": 2.18949,
+   "capitalizacion": 4038595557251.0005,
+   "per": null,
+   "evEbitda": null,
+   "evFcl": null,
+   "bpa": null,
+   "deudaNeta": null,
+   "deudaNetaEbitda": null,
+   "margenOperativo": null,
+   "avisos": [
+    "fundamentales anuales sin actualizar"
+   ]
+  },
+  {
+   "ticker": "MSFT",
+   "nombre": "Microsoft Corporation",
+   "precio": 393.35,
+   "cambioPct": 1.09226,
+   "capitalizacion": 2921972940500.0,
+   "per": null,
+   "evEbitda": null,
+   "evFcl": null,
+   "bpa": null,
+   "deudaNeta": null,
+   "deudaNetaEbitda": null,
+   "margenOperativo": null,
+   "avisos": [
+    "fundamentales anuales sin actualizar"
+   ]
+  },
+  {
+   "ticker": "META",
+   "nombre": "Meta Platforms, Inc.",
+   "precio": 593.41,
+   "cambioPct": -0.07745803,
+   "capitalizacion": 1506325692123.0,
+   "per": null,
+   "evEbitda": null,
+   "evFcl": null,
+   "bpa": null,
+   "deudaNeta": null,
+   "deudaNetaEbitda": null,
+   "margenOperativo": null,
+   "avisos": [
+    "fundamentales anuales sin actualizar"
+   ]
+  },
+  {
+   "ticker": "AMZN",
+   "nombre": "Amazon.com, Inc.",
+   "precio": 230.86,
+   "cambioPct": -0.22905,
+   "capitalizacion": 2483384106000.0,
+   "per": null,
+   "evEbitda": null,
+   "evFcl": null,
+   "bpa": null,
+   "deudaNeta": null,
+   "deudaNetaEbitda": null,
+   "margenOperativo": null,
+   "avisos": [
+    "fundamentales anuales sin actualizar"
+   ]
+  }
+ ]
 }
