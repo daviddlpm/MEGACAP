@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Megacap · Alphabet · Microsoft · Meta · Amazon</title>
+<meta name="description" content="Panel de métricas fundamentales y valoración de GOOGL, MSFT, META y AMZN.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="marca">
+    <span class="marca-punto" aria-hidden="true"></span>
+    <span class="marca-txt">Megacap</span>
+    <span class="marca-sub">panel de valoración</span>
+  </div>
+  <nav class="selector" id="selector" aria-label="Seleccionar valor"></nav>
+  <div class="barra-fin">
+    <span class="sello" id="sello">cargando…</span>
+    <button class="btn" id="btn-refrescar" title="Vuelve a pedir la última cotización">Refrescar precio</button>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- Cabecera del valor ------------------------------------------------- -->
+  <section class="portada" id="portada">
+    <div class="portada-izq">
+      <p class="eyebrow" id="p-ticker">—</p>
+      <h1 class="portada-nombre" id="p-nombre">Cargando</h1>
+      <div class="portada-precio">
+        <span class="cifra-xl" id="p-precio">—</span>
+        <span class="delta" id="p-delta"></span>
+      </div>
+      <p class="nota" id="p-fuente"></p>
+    </div>
+    <div class="portada-der">
+      <canvas id="chispa" height="90" aria-label="Evolución del precio en el último año"></canvas>
+    </div>
+  </section>
+
+  <!-- Tarjetas de métricas ------------------------------------------------ -->
+  <section class="kpis" id="kpis" aria-label="Métricas clave"></section>
+
+  <!-- Signature: bandas de valoración ------------------------------------- -->
+  <section class="bloque">
+    <div class="bloque-cab">
+      <h2>Bandas de valoración</h2>
+      <p class="bloque-sub">Múltiplo actual frente a su propio rango de los últimos 5 ejercicios.
+         La marca indica dónde cotiza hoy; el trazo vertical, la mediana histórica.</p>
+    </div>
+    <div class="bandas" id="bandas"></div>
+  </section>
+
+  <!-- Precio -------------------------------------------------------------- -->
+  <section class="bloque">
+    <div class="bloque-cab fila">
+      <h2>Evolución del precio</h2>
+      <div class="rangos" id="rangos" role="group" aria-label="Rango temporal"></div>
+    </div>
+    <div class="lienzo alto"><canvas id="g-precio"></canvas></div>
+  </section>
+
+  <!-- Múltiplos ----------------------------------------------------------- -->
+  <section class="bloque">
+    <div class="bloque-cab">
+      <h2>Múltiplos históricos</h2>
+      <p class="bloque-sub">Serie anual sobre cuentas auditadas. Un múltiplo vacío significa
+         que el denominador fue negativo ese ejercicio.</p>
+    </div>
+    <div class="rejilla">
+      <figure class="panel"><figcaption>PER</figcaption><div class="lienzo"><canvas id="g-per"></canvas></div></figure>
+      <figure class="panel"><figcaption>EV / EBITDA</figcaption><div class="lienzo"><canvas id="g-evebitda"></canvas></div></figure>
+      <figure class="panel"><figcaption>EV / Free cash flow</figcaption><div class="lienzo"><canvas id="g-evfcl"></canvas></div></figure>
+      <figure class="panel"><figcaption>Deuda neta / EBITDA</figcaption><div class="lienzo"><canvas id="g-deuda"></canvas></div></figure>
+    </div>
+  </section>
+
+  <!-- Negocio ------------------------------------------------------------- -->
+  <section class="bloque">
+    <div class="bloque-cab"><h2>Cuenta de resultados y caja</h2></div>
+    <div class="rejilla">
+      <figure class="panel"><figcaption>Ingresos y EBITDA</figcaption><div class="lienzo"><canvas id="g-ingresos"></canvas></div></figure>
+      <figure class="panel"><figcaption>BPA diluido</figcaption><div class="lienzo"><canvas id="g-bpa"></canvas></div></figure>
+      <figure class="panel"><figcaption>Free cash flow y capex</figcaption><div class="lienzo"><canvas id="g-fcl"></canvas></div></figure>
+      <figure class="panel"><figcaption>Margen operativo y ROIC</figcaption><div class="lienzo"><canvas id="g-margenes"></canvas></div></figure>
+    </div>
+  </section>
+
+  <!-- Comparativa --------------------------------------------------------- -->
+  <section class="bloque">
+    <div class="bloque-cab"><h2>Las cuatro, lado a lado</h2></div>
+    <div class="tabla-env"><table class="tabla" id="tabla"></table></div>
+  </section>
+
+  <!-- Noticias ------------------------------------------------------------ -->
+  <section class="bloque">
+    <div class="bloque-cab"><h2>Titulares</h2></div>
+    <ul class="noticias" id="noticias"></ul>
+  </section>
+
+</main>
+
+<footer class="pie">
+  <p>Datos de Financial Modeling Prep y Stooq, actualizados por GitHub Actions.
+     Panel informativo: no es asesoramiento de inversión ni recomendación de compra o venta.</p>
+  <p id="pie-sello"></p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
