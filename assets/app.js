@@ -121,7 +121,8 @@ function portada(d) {
   }
 
   const avisos = (d.avisos || []).length ? ` · ${d.avisos.join('; ')}` : '';
-  $('#p-fuente').textContent = `Precios vía ${d.fuentePrecios || '—'}${avisos}`;
+  const base = (d.ttm || {}).base ? ` · múltiplos sobre ${d.ttm.base}` : '';
+  $('#p-fuente').textContent = `Precios vía ${d.fuentePrecios || '—'}${base}${avisos}`;
 
   chispa(d);
 }
@@ -161,18 +162,18 @@ function deudaNetaTitulo(m, u) {
 
 function kpis(d) {
   const q = d.cotizacion || {}, u = ultimo(d), m = d.ttm || {};
-  const ej = m.ejercicioBase || u.ejercicio || '—';
+  const ej = m.completo ? `12 m a ${m.cierre || '—'}` : `ejercicio ${u.ejercicio || '—'}`;
   const items = [
     ['Capitalización', grande(q.capitalizacion), 'valor de mercado'],
-    ['PER', mult(m.per ?? q.per), 'precio actual / BPA 12 m'],
-    ['EV / EBITDA', mult(m.evEbitda), 'con capitalización de hoy'],
-    ['EV / FCF', mult(m.evFcl), 'con capitalización de hoy'],
-    ['BPA', dinero(m.bpa ?? q.bpaTTM), 'últimos doce meses'],
-    ['Ingresos', grande(u.ingresos), `ejercicio ${ej}`],
+    ['PER', mult(m.per), 'capitalización / beneficio'],
+    ['EV / EBITDA', mult(m.evEbitda), ej],
+    ['EV / FCF', mult(m.evFcl), (m.fcl != null && m.fcl <= 0) ? 'flujo de caja negativo' : ej],
+    ['BPA', dinero(m.bpa), ej],
+    ['Ingresos', grande(m.ingresos ?? u.ingresos), ej],
     ['Crecimiento', pct(m.crecimientoIngresos ?? u.crecimientoIngresos), 'ingresos, interanual'],
-    [deudaNetaTitulo(m, u), grande(Math.abs(m.deudaNeta ?? u.deudaNeta ?? 0)) , `balance ${ej}`],
+    [deudaNetaTitulo(m, u), grande(Math.abs(m.deudaNeta ?? u.deudaNeta ?? 0)), 'deuda total menos caja'],
     ['DN / EBITDA', mult(m.deudaNetaEbitda), (m.deudaNeta ?? u.deudaNeta) < 0 ? 'sin deuda neta' : 'apalancamiento'],
-    ['Margen operativo', pct(m.margenOperativo ?? u.margenOperativo), `ejercicio ${ej}`],
+    ['Margen operativo', pct(m.margenOperativo ?? u.margenOperativo), ej],
     ['ROIC', pct(m.roic ?? u.roic), 'capital invertido'],
     ['Acciones', acciones(m.acciones ?? u.acciones), 'diluidas en circulación'],
     ['Rango 52 sem.', `${dinero(q.min52)} – ${dinero(q.max52)}`, 'mínimo y máximo'],
