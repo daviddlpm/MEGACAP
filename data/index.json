@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-08-11T17:57:49+00:00",
+ "actualizado": "2026-08-11T19:02:17+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -38,59 +38,47 @@
    "per": null,
    "evEbitda": null,
    "evFcl": null,
-   "bpa": 17.95,
+   "bpa": 17.94565946598685,
    "deudaNeta": 51965300000.0,
    "deudaNetaEbitda": 0.2504122514083048,
    "margenOperativo": 0.4678081840892722,
-   "base": "ejercicio 2026 (sin trimestres para TTM)",
+   "base": "suma de los cuatro ultimos trimestres",
    "avisos": [
     "serie de precios sin actualizar",
-    "cotizacion derivada del ultimo cierre",
-    "fundamentales sin actualizar",
-    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
+    "cotizacion derivada del ultimo cierre"
    ]
   },
   {
    "ticker": "META",
    "nombre": "Meta Platforms, Inc.",
-   "precio": 603.93,
-   "cambioPct": 1.514489343104954,
-   "capitalizacion": null,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": 23.49,
-   "deudaNeta": 2305000000.0,
-   "deudaNetaEbitda": 0.02204728928339136,
-   "margenOperativo": 0.41437855159579234,
-   "base": "ejercicio 2025 (sin trimestres para TTM)",
-   "avisos": [
-    "serie de precios sin actualizar",
-    "cotizacion derivada del ultimo cierre",
-    "fundamentales sin actualizar",
-    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
-   ]
+   "precio": 602.09,
+   "cambioPct": 1.2052,
+   "capitalizacion": 1533816188931.0,
+   "per": 22.523659856838673,
+   "evEbitda": 14.531102332365137,
+   "evFcl": 37.970377511982626,
+   "bpa": 26.5385814497272,
+   "deudaNeta": 22058000000.0,
+   "deudaNetaEbitda": 0.20601090854751944,
+   "margenOperativo": 0.38084451999579405,
+   "base": "suma de los cuatro ultimos trimestres",
+   "avisos": []
   },
   {
    "ticker": "AMZN",
    "nombre": "Amazon.com, Inc.",
-   "precio": 271.925,
-   "cambioPct": -2.216908195188595,
-   "capitalizacion": null,
-   "per": null,
-   "evEbitda": null,
+   "precio": 272.3741,
+   "cambioPct": -2.05541,
+   "capitalizacion": 2929955431110.0,
+   "per": 21.65829222958139,
+   "evEbitda": 11.930059926337712,
    "evFcl": null,
-   "bpa": 7.17,
-   "deudaNeta": 29958000000.0,
-   "deudaNetaEbitda": 0.18118917872759932,
-   "margenOperativo": 0.11155296795755199,
-   "base": "ejercicio 2025 (sin trimestres para TTM)",
-   "avisos": [
-    "serie de precios sin actualizar",
-    "cotizacion derivada del ultimo cierre",
-    "fundamentales sin actualizar",
-    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
-   ]
+   "bpa": 12.407685957993213,
+   "deudaNeta": 100244000000.0,
+   "deudaNetaEbitda": 0.3946660787332134,
+   "margenOperativo": 0.12081270627062707,
+   "base": "suma de los cuatro ultimos trimestres",
+   "avisos": []
   }
  ]
 }
