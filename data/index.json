@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-08-12T16:57:17+00:00",
+ "actualizado": "2026-08-12T17:57:46+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -11,18 +11,23 @@
   {
    "ticker": "GOOGL",
    "nombre": "Alphabet Inc.",
-   "precio": 342.87,
-   "cambioPct": -0.27051,
-   "capitalizacion": 4149450896631.0005,
-   "per": 16.991670508920787,
-   "evEbitda": 12.30186528449495,
-   "evFcl": 75.45535067728494,
-   "bpa": 19.83954829799334,
-   "deudaNeta": -129718000000.0,
+   "precio": 343.0,
+   "cambioPct": -0.23269342641070717,
+   "capitalizacion": null,
+   "per": null,
+   "evEbitda": null,
+   "evFcl": null,
+   "bpa": 10.81,
+   "deudaNeta": -67552000000.0,
    "deudaNetaEbitda": null,
-   "margenOperativo": 0.3311032213642185,
-   "base": "suma de los cuatro ultimos trimestres",
-   "avisos": []
+   "margenOperativo": 0.32032638592380025,
+   "base": "ejercicio 2025 (sin trimestres para TTM)",
+   "avisos": [
+    "serie de precios sin actualizar",
+    "cotizacion derivada del ultimo cierre",
+    "fundamentales sin actualizar",
+    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
+   ]
   },
   {
    "ticker": "MSFT",
