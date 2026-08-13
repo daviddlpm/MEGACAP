@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-08-13T16:56:49+00:00",
+ "actualizado": "2026-08-13T17:57:39+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -11,34 +11,42 @@
   {
    "ticker": "GOOGL",
    "nombre": "Alphabet Inc.",
-   "precio": 346.3828,
-   "cambioPct": 0.8275,
-   "capitalizacion": 4191963193156.0,
-   "per": 17.165754972895723,
-   "evEbitda": 12.431968591912057,
-   "evFcl": 76.25335898402568,
-   "bpa": 19.83954829799334,
-   "deudaNeta": -129718000000.0,
+   "precio": 345.97,
+   "cambioPct": 0.7073412120859308,
+   "capitalizacion": null,
+   "per": null,
+   "evEbitda": null,
+   "evFcl": null,
+   "bpa": 10.81,
+   "deudaNeta": -67552000000.0,
    "deudaNetaEbitda": null,
-   "margenOperativo": 0.3311032213642185,
-   "base": "suma de los cuatro ultimos trimestres",
-   "avisos": []
+   "margenOperativo": 0.32032638592380025,
+   "base": "ejercicio 2025 (sin trimestres para TTM)",
+   "avisos": [
+    "serie de precios sin actualizar",
+    "cotizacion derivada del ultimo cierre",
+    "fundamentales sin actualizar",
+    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
+   ]
   },
   {
    "ticker": "MSFT",
    "nombre": "Microsoft Corporation",
-   "precio": 494.4,
-   "cambioPct": 0.40006,
-   "capitalizacion": 3671191920000.0,
-   "per": 27.44836910930175,
-   "evEbitda": 17.94128354512117,
-   "evFcl": 55.580294982608564,
+   "precio": 494.61,
+   "cambioPct": 0.44270251609365935,
+   "capitalizacion": null,
+   "per": null,
+   "evEbitda": null,
+   "evFcl": null,
    "bpa": 17.95,
    "deudaNeta": 51965300000.0,
    "deudaNetaEbitda": 0.2504122514083048,
    "margenOperativo": 0.4678081840892722,
    "base": "ejercicio 2026 (sin trimestres para TTM)",
    "avisos": [
+    "serie de precios sin actualizar",
+    "cotizacion derivada del ultimo cierre",
+    "fundamentales sin actualizar",
     "TTM incompleto: se muestra el ultimo ejercicio cerrado"
    ]
   },
