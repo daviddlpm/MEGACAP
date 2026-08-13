@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-08-13T20:42:50+00:00",
+ "actualizado": "2026-08-13T21:45:04+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -12,7 +12,7 @@
    "ticker": "GOOGL",
    "nombre": "Alphabet Inc.",
    "precio": 346.36,
-   "cambioPct": 0.82086,
+   "cambioPct": 0.82087,
    "capitalizacion": 4191687265019.0005,
    "per": 17.164625069179586,
    "evEbitda": 12.431124150040704,
