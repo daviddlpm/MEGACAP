@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-08-25T18:40:01+00:00",
+ "actualizado": "2026-08-25T19:32:07+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -11,86 +11,66 @@
   {
    "ticker": "GOOGL",
    "nombre": "Alphabet Inc.",
-   "precio": 346.68,
-   "cambioPct": -0.3964833649370785,
-   "capitalizacion": null,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": 10.81,
-   "deudaNeta": -67552000000.0,
+   "precio": 346.8,
+   "cambioPct": -0.36201,
+   "capitalizacion": 4197012193984.9995,
+   "per": 17.18643022863987,
+   "evEbitda": 12.44742039670031,
+   "evFcl": 76.34813496489778,
+   "bpa": 19.83954829799334,
+   "deudaNeta": -129718000000.0,
    "deudaNetaEbitda": null,
-   "margenOperativo": 0.32032638592380025,
-   "base": "ejercicio 2025 (sin trimestres para TTM)",
-   "avisos": [
-    "serie de precios sin actualizar",
-    "cotizacion derivada del ultimo cierre",
-    "fundamentales sin actualizar",
-    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
-   ]
+   "margenOperativo": 0.3311032213642185,
+   "base": "suma de los cuatro ultimos trimestres",
+   "avisos": []
   },
   {
    "ticker": "MSFT",
    "nombre": "Microsoft Corporation",
-   "precio": 489.535,
-   "cambioPct": 0.4565882087377691,
-   "capitalizacion": null,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": 17.95,
+   "precio": 490.35,
+   "cambioPct": 0.62383,
+   "capitalizacion": 3641118442500.0,
+   "per": 27.223518998272883,
+   "evEbitda": 17.796364393139907,
+   "evFcl": 55.131350000746416,
+   "bpa": 17.94565946598685,
    "deudaNeta": 51965300000.0,
    "deudaNetaEbitda": 0.2504122514083048,
    "margenOperativo": 0.4678081840892722,
-   "base": "ejercicio 2026 (sin trimestres para TTM)",
-   "avisos": [
-    "serie de precios sin actualizar",
-    "cotizacion derivada del ultimo cierre",
-    "fundamentales sin actualizar",
-    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
-   ]
+   "base": "suma de los cuatro ultimos trimestres",
+   "avisos": []
   },
   {
    "ticker": "META",
    "nombre": "Meta Platforms, Inc.",
-   "precio": 565.69,
-   "cambioPct": 1.1931594576222806,
-   "capitalizacion": null,
-   "per": null,
-   "evEbitda": null,
-   "evFcl": null,
-   "bpa": 23.49,
-   "deudaNeta": 2305000000.0,
-   "deudaNetaEbitda": 0.02204728928339136,
-   "margenOperativo": 0.41437855159579234,
-   "base": "ejercicio 2025 (sin trimestres para TTM)",
-   "avisos": [
-    "serie de precios sin actualizar",
-    "cotizacion derivada del ultimo cierre",
-    "fundamentales sin actualizar",
-    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
-   ]
+   "precio": 566.5813,
+   "cambioPct": 1.3526,
+   "capitalizacion": 1443358252563.0,
+   "per": 21.195310472598315,
+   "evEbitda": 13.686269543512777,
+   "evFcl": 35.76279413712905,
+   "bpa": 26.5385814497272,
+   "deudaNeta": 22058000000.0,
+   "deudaNetaEbitda": 0.20601090854751944,
+   "margenOperativo": 0.38084451999579405,
+   "base": "suma de los cuatro ultimos trimestres",
+   "avisos": []
   },
   {
    "ticker": "AMZN",
    "nombre": "Amazon.com, Inc.",
-   "precio": 260.96,
-   "cambioPct": -0.4235509596672697,
-   "capitalizacion": null,
-   "per": null,
-   "evEbitda": null,
+   "precio": 260.2,
+   "cambioPct": -0.71355,
+   "capitalizacion": 2798997420000.0,
+   "per": 20.69024785446589,
+   "evEbitda": 11.41447111580058,
    "evFcl": null,
-   "bpa": 7.17,
-   "deudaNeta": 29958000000.0,
-   "deudaNetaEbitda": 0.18118917872759932,
-   "margenOperativo": 0.11155296795755199,
-   "base": "ejercicio 2025 (sin trimestres para TTM)",
-   "avisos": [
-    "serie de precios sin actualizar",
-    "cotizacion derivada del ultimo cierre",
-    "fundamentales sin actualizar",
-    "TTM incompleto: se muestra el ultimo ejercicio cerrado"
-   ]
+   "bpa": 12.407685957993213,
+   "deudaNeta": 100244000000.0,
+   "deudaNetaEbitda": 0.3946660787332134,
+   "margenOperativo": 0.12081270627062707,
+   "base": "suma de los cuatro ultimos trimestres",
+   "avisos": []
   }
  ]
 }
