@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-09-18T20:31:47+00:00",
+ "actualizado": "2026-09-18T23:03:54+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -47,11 +47,11 @@
    "cambioPct": -2.42705,
    "capitalizacion": 1695989183978.0,
    "per": 24.905124731680814,
-   "evEbitda": 15.861235280726987,
-   "evFcl": 41.44607047974424,
+   "evEbitda": 16.04571861904139,
+   "evFcl": 41.928133150575945,
    "bpa": 26.5385814497272,
-   "deudaNeta": 2305000000.0,
-   "deudaNetaEbitda": 0.021527570233114166,
+   "deudaNeta": 22058000000.0,
+   "deudaNetaEbitda": 0.20601090854751944,
    "margenOperativo": 0.38084451999579405,
    "base": "suma de los cuatro ultimos trimestres",
    "avisos": []
