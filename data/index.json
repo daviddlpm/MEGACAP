@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-11-05T01:19:01+00:00",
+ "actualizado": "2026-11-05T09:22:50+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -61,9 +61,9 @@
    "nombre": "Amazon.com, Inc.",
    "precio": 266.03,
    "cambioPct": 6.11911,
-   "capitalizacion": 2869483306824.0,
-   "per": 21.290284887289562,
-   "evEbitda": 11.733448735354537,
+   "capitalizacion": 2876608993000.0,
+   "per": 21.343154297034406,
+   "evEbitda": 11.761067888123163,
    "evFcl": null,
    "bpa": 12.33223533717632,
    "deudaNeta": 157723000000.0,
