@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-11-14T01:18:50+00:00",
+ "actualizado": "2026-11-14T08:54:47+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -13,10 +13,10 @@
    "nombre": "Alphabet Inc.",
    "precio": 295.77,
    "cambioPct": -0.98092,
-   "capitalizacion": 3601203455080.9995,
-   "per": 15.27914777245496,
-   "evEbitda": 10.91288092887847,
-   "evFcl": 176.12915658484832,
+   "capitalizacion": 3599487456103.0005,
+   "per": 15.27186715021596,
+   "evEbitda": 10.907496693220756,
+   "evFcl": 176.0422573607637,
    "bpa": 19.056759379042692,
    "deudaNeta": -123181000000.0,
    "deudaNetaEbitda": null,
