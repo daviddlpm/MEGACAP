@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-11-25T22:57:59+00:00",
+ "actualizado": "2026-11-26T10:45:07+00:00",
  "modo": "completo",
  "tickers": [
   "GOOGL",
@@ -45,10 +45,10 @@
    "nombre": "Meta Platforms, Inc.",
    "precio": 609.89,
    "cambioPct": 3.40273,
-   "capitalizacion": 1559025930831.0,
-   "per": 20.71822789447036,
-   "evEbitda": 14.884961405705987,
-   "evFcl": 55.45102725413613,
+   "capitalizacion": 1559025892408.0,
+   "per": 20.71822738385892,
+   "evEbitda": 14.884961045704113,
+   "evFcl": 55.451025913019194,
    "bpa": 29.245627671978234,
    "deudaNeta": 29646000000.0,
    "deudaNetaEbitda": 0.27776632624379277,
